@@ -20,7 +20,9 @@ import {
 } from "@/utils/common";
 import { checkIfRecipientIsIndexedQuery } from "@/utils/query";
 import { getProfileById } from "@/utils/request";
+import { MicroGrantsStrategy, Registry } from "@allo-team/allo-v2-sdk";
 import {
+  TransactionData,
   ZERO_ADDRESS
 } from "@allo-team/allo-v2-sdk/dist/Common/types";
 import { sendTransaction } from "@wagmi/core";
@@ -178,6 +180,7 @@ export const ApplicationContextProvider = (props: {
     let profileId = data.profileId;
     // ToDo: Create instance of registry from SDK
     // -> snippet
+    const registry = new Registry({ chain: chain });
 
     // 1. if profileName is set, create profile
     if (data.profileName && address) {
@@ -185,6 +188,16 @@ export const ApplicationContextProvider = (props: {
 
       // ToDo: Prepare transaction for sending
       // -> snippet - createProfileTx
+      const txCreateProfile: TransactionData = await registry.createProfile({
+        nonce: randomNumber,
+        name: data.profileName,
+        metadata: {
+          protocol: BigInt(0),
+          pointer: "",
+        },
+        owner: address,
+        members: [],
+      });
 
       try {
         const tx = await sendTransaction({
@@ -260,6 +273,7 @@ export const ApplicationContextProvider = (props: {
 
     // ToDo: Create instance of microgrants from SDK
     // -> snippet - createMicroGrantsInstance
+    const strategy = new MicroGrantsStrategy({ chain, poolId });
 
     if (ethereumHashRegExp.test(profileId || "")) {
       anchorAddress = (
@@ -272,6 +286,15 @@ export const ApplicationContextProvider = (props: {
 
     // ToDo: Prepare register recipient transaction for sending
     // -> snippet - getRegisterRecipientData
+    const registerRecipientData = strategy.getRegisterRecipientData({
+      registryAnchor: anchorAddress as `0x${string}`,
+      recipientAddress: data.recipientAddress as `0x${string}`,
+      requestedAmount: data.requestedAmount,
+      metadata: {
+        protocol: BigInt(1),
+        pointer: pointer.IpfsHash,
+      },
+    });
 
     try {
       // Send the transaction

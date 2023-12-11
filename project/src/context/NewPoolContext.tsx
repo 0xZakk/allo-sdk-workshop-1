@@ -21,6 +21,8 @@ import {
 import { abi } from "@/utils/erc20.abi";
 import { checkIfPoolIsIndexedQuery } from "@/utils/query";
 import { getProfileById } from "@/utils/request";
+import { Allo, MicroGrantsStrategy, Registry } from "@allo-team/allo-v2-sdk";
+import { TransactionData } from "@allo-team/allo-v2-sdk/dist/Common/types";
 import { StrategyType } from "@allo-team/allo-v2-sdk/dist/strategies/MicroGrantsStrategy/types";
 import {
   getWalletClient,
@@ -146,6 +148,9 @@ export const NewPoolContextProvider = (props: {
 
     // ToDo: Create an instance of Allo from the SDK
     // --> snippet - createAlloInstance
+    const allo = new Allo({
+      chain: chain,
+    });
 
     // Reset steps
     steps.map((step, index) => {
@@ -197,12 +202,22 @@ export const NewPoolContextProvider = (props: {
     if (data.profileName && address) {
       // ToDo: Create an instance of the Registry from the SDK
       // --> snippet - createRegistryInstance
-
+      const registry = new Registry({ chain: chain });
 
       const randomNumber = Math.floor(Math.random() * 10000000000);
 
       // ToDo: Create profile transaction
       // --> snippet - createProfileTx
+      const txCreateProfile: TransactionData = await registry.createProfile({
+        nonce: randomNumber,
+        name: data.profileName,
+        metadata: {
+          protocol: BigInt(0),
+          pointer: "",
+        },
+        owner: address,
+        members: [],
+      });
 
       try {
         // Create a transaction to create a profile and send with provider
@@ -275,9 +290,13 @@ export const NewPoolContextProvider = (props: {
 
     // ToDo: Create an instance of the MicroGrantsStrategy from the SDK
     // --> snippet - createMicroGrantsInstance
+    const strategy = new MicroGrantsStrategy({
+      chain: chain,
+    });
 
     // ToDo: Get the deploy params for the strategy
     // --> snippet - getStrategyDeployParams
+    const deployParams = strategy.getDeployParams(data.strategyType);
 
     try {
       const hash = await walletClient!.deployContract({
@@ -381,7 +400,15 @@ export const NewPoolContextProvider = (props: {
 
     // ToDo: Get the initialize data for the strategy
     // --> snippet - getInitializeData
-    
+    if (data.strategyType === StrategyType.MicroGrants) {
+      initStrategyData = await strategy.getInitializeData(initParams);
+    } else if (data.strategyType === StrategyType.Hats) {
+      initStrategyData = await strategy.getInitializeDataHats(initParams);
+    } else if (data.strategyType === StrategyType.Gov) {
+      initStrategyData = await strategy.getInitializeDataGov(initParams);
+    } else {
+      throw new Error("Invalid strategy type");
+    }
 
     const poolCreationData = {
       profileId: profileId,
@@ -398,7 +425,9 @@ export const NewPoolContextProvider = (props: {
 
     // ToDo: Create a transaction to create a pool with custom strategy
     // --> snippet - createPoolTx
-    
+    const createPoolData = await allo.createPoolWithCustomStrategy(
+      poolCreationData
+    );
 
     try {
       const tx = await sendTransaction({
